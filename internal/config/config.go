@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 )
 
@@ -43,11 +44,15 @@ type SMTPConfig struct {
 }
 
 func Load() (*Config, error) {
+	// Load .env file (ignore if not found in production)
+	_ = godotenv.Load(".env")
+
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath("./config")
 	viper.AddConfigPath(".")
 
+	// Allow environment variables to override yaml values
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
