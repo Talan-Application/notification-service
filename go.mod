@@ -4,6 +4,7 @@ go 1.25.5
 
 require (
 	github.com/jackc/pgx/v5 v5.6.0
+	github.com/joho/godotenv v1.5.1
 	github.com/rabbitmq/amqp091-go v1.10.0
 	github.com/spf13/viper v1.19.0
 	go.uber.org/zap v1.27.0

@@ -1,0 +1,104 @@
+version: "3.9"
+
+# ── Production Deployment Configuration ────────────────────────────────────
+#
+#   This docker-compose file is designed for production deployments.
+#   The notification-service runs with its own isolated PostgreSQL database
+#   for idempotency tracking (deduplication of processed events).
+#
+#   RabbitMQ and Mailhog can be external services or defined separately.
+#
+# ── Services ───────────────────────────────────────────────────────────────
+#
+#   notification-service  event consumer, email sender
+#   postgres              PostgreSQL database for notification_db (idempotency)
+#   rabbitmq              (optional) message broker for event consumption
+#   mailhog               (optional) SMTP server for testing
+#
+# Usage:
+#   docker compose up -d
+#   docker compose logs -f notification-service
+
+services:
+    # ── postgres ───────────────────────────────────────────────────────────────
+    postgres:
+        image: postgres:18.1-bookworm
+        environment:
+            POSTGRES_USER: ${DATABASE_USER:-postgres}
+            POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+            POSTGRES_DB: ${DATABASE_DBNAME:-notification_db}
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-postgres}"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+        ports:
+            - "${DATABASE_PORT:-5432}:5432"
+        networks:
+            - notification-network
+
+    # ── rabbitmq ──────────────────────────────────────────────────────────────
+    # Uncomment if running RabbitMQ locally. For production, use external service.
+    # rabbitmq:
+    #   image: rabbitmq:3.13-management-alpine
+    #   environment:
+    #     RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+    #     RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    #   volumes:
+    #     - rabbitmq_data:/var/lib/rabbitmq
+    #   healthcheck:
+    #     test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+    #     interval: 10s
+    #     timeout: 10s
+    #     retries: 5
+    #   ports:
+    #     - "5672:5672"
+    #     - "15672:15672"
+    #   networks:
+    #     - notification-network
+
+    # ── mailhog ───────────────────────────────────────────────────────────────
+    # Uncomment if using Mailhog for SMTP testing. For production, use real SMTP.
+    # mailhog:
+    #   image: mailhog/mailhog:latest
+    #   ports:
+    #     - "1025:1025"     # SMTP
+    #     - "8025:8025"     # web UI
+    #   networks:
+    #     - notification-network
+
+    # ── notification-service ──────────────────────────────────────────────────
+    notification-service:
+        build: .
+        environment:
+            APP_ENV: ${APP_ENV:-production}
+            APP_SENDERTYPE: ${APP_SENDERTYPE:-smtp}
+            DATABASE_HOST: postgres
+            DATABASE_PORT: 5432
+            DATABASE_USER: ${DATABASE_USER:-postgres}
+            DATABASE_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+            DATABASE_DBNAME: ${DATABASE_DBNAME:-notification_db}
+            DATABASE_SSLMODE: ${DATABASE_SSLMODE:-disable}
+            RABBITMQ_URL: ${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672/}
+            SMTP_HOST: ${SMTP_HOST:-localhost}
+            SMTP_PORT: ${SMTP_PORT:-1025}
+            SMTP_USERNAME: ${SMTP_USERNAME:-}
+            SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+            SMTP_FROM: ${SMTP_FROM:-noreply@example.com}
+            SMTP_TLS: ${SMTP_TLS:-false}
+        depends_on:
+            postgres:
+                condition: service_healthy
+        restart: unless-stopped
+        networks:
+            - notification-network
+
+networks:
+    notification-network:
+        driver: bridge
+
+volumes:
+    postgres_data:
+    # rabbitmq_data:
