@@ -12,15 +12,13 @@ import (
 )
 
 const (
-	mainExchange = "talan.events"
-	dlxExchange  = "talan.dlx"
-	mainQueue    = "notification.queue"
-	dlqQueue     = "notification.dlq"
+	mainExchange  = "talan.events"
+	dlxExchange   = "talan.dlx"
+	mainQueue     = "notification.queue"
+	dlqQueue      = "notification.dlq"
 	prefetchCount = 10
 )
 
-// MessageHandler processes a single delivery. Returning an error sends the
-// message to the DLQ; returning nil ACKs it.
 type MessageHandler func(ctx context.Context, msg amqp.Delivery) error
 
 type Consumer struct {
@@ -38,24 +36,20 @@ func New(conn *rabbitmq.Connection, log *zap.Logger) (*Consumer, error) {
 	c := &Consumer{conn: conn, channel: ch, log: log}
 
 	if err := c.declareTopology(); err != nil {
-		ch.Close() //nolint:errcheck
+		ch.Close()
 		return nil, fmt.Errorf("declare topology: %w", err)
 	}
 
 	return c, nil
 }
 
-// declareTopology creates the exchange/queue/binding topology idempotently.
-// Running it multiple times is safe — all declarations use passive-compatible options.
 func (c *Consumer) declareTopology() error {
-	// Dead-letter exchange (fanout — everything rejected lands here)
 	if err := c.channel.ExchangeDeclare(
 		dlxExchange, amqp.ExchangeFanout, true, false, false, false, nil,
 	); err != nil {
 		return fmt.Errorf("declare dlx exchange: %w", err)
 	}
 
-	// Dead-letter queue
 	if _, err := c.channel.QueueDeclare(
 		dlqQueue, true, false, false, false, nil,
 	); err != nil {
@@ -65,14 +59,12 @@ func (c *Consumer) declareTopology() error {
 		return fmt.Errorf("bind dlq: %w", err)
 	}
 
-	// Main topic exchange
 	if err := c.channel.ExchangeDeclare(
 		mainExchange, amqp.ExchangeTopic, true, false, false, false, nil,
 	); err != nil {
 		return fmt.Errorf("declare main exchange: %w", err)
 	}
 
-	// Main queue — rejected messages go to dlxExchange automatically
 	if _, err := c.channel.QueueDeclare(
 		mainQueue, true, false, false, false,
 		amqp.Table{"x-dead-letter-exchange": dlxExchange},
@@ -80,7 +72,6 @@ func (c *Consumer) declareTopology() error {
 		return fmt.Errorf("declare main queue: %w", err)
 	}
 
-	// Bind all user.* events to this queue
 	if err := c.channel.QueueBind(mainQueue, "user.*", mainExchange, false, nil); err != nil {
 		return fmt.Errorf("bind main queue: %w", err)
 	}
@@ -88,9 +79,6 @@ func (c *Consumer) declareTopology() error {
 	return nil
 }
 
-// Consume starts pulling messages and dispatching them to handler concurrently
-// (up to prefetchCount in-flight at once). It blocks until ctx is cancelled,
-// then drains in-flight messages before returning — guaranteeing graceful shutdown.
 func (c *Consumer) Consume(ctx context.Context, handler MessageHandler) error {
 	if err := c.channel.Qos(prefetchCount, 0, false); err != nil {
 		return fmt.Errorf("set qos: %w", err)
@@ -126,15 +114,15 @@ func (c *Consumer) Consume(ctx context.Context, handler MessageHandler) error {
 						zap.String("routing_key", m.RoutingKey),
 						zap.Error(err),
 					)
-					m.Nack(false, false) //nolint:errcheck
+					m.Nack(false, false)
 					return
 				}
-				m.Ack(false) //nolint:errcheck
+				m.Ack(false)
 			}(msg)
 		}
 	}
 }
 
 func (c *Consumer) Close() {
-	c.channel.Close() //nolint:errcheck
+	c.channel.Close()
 }

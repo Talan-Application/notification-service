@@ -29,23 +29,20 @@ func main() {
 	}
 
 	zapLog := logger.New(cfg.App.Env)
-	defer zapLog.Sync() //nolint:errcheck
+	defer zapLog.Sync()
 
-	// ── Database ────────────────────────────────────────────────────────────
 	db, err := postgres.NewConnection(cfg.Database)
 	if err != nil {
 		zapLog.Fatal("database connection failed", zap.Error(err))
 	}
 	defer db.Close()
 
-	// ── RabbitMQ ────────────────────────────────────────────────────────────
 	rabbitConn, err := rabbitmq.NewConnection(cfg.RabbitMQ.URL, zapLog)
 	if err != nil {
 		zapLog.Fatal("rabbitmq connection failed", zap.Error(err))
 	}
 	defer rabbitConn.Close()
 
-	// ── Email sender ────────────────────────────────────────────────────────
 	var emailSender sender.EmailSender
 	if cfg.App.SenderType == "smtp" {
 		emailSender = smtpsender.NewSender(cfg.SMTP)
@@ -53,13 +50,11 @@ func main() {
 		emailSender = consolesender.NewSender(zapLog)
 	}
 
-	// ── Event handlers ──────────────────────────────────────────────────────
 	handlers := map[domain.EventType]handler.EventHandler{
 		domain.EventUserRegistered: handler.NewUserRegisteredHandler(emailSender, zapLog),
 		domain.EventPasswordReset:  handler.NewPasswordResetHandler(emailSender, zapLog),
 	}
 
-	// ── Consumer ─────────────────────────────────────────────────────────────
 	idempotencyRepo := postgres.NewIdempotencyRepository(db)
 	notifConsumer := consumer.NewNotificationConsumer(handlers, idempotencyRepo, zapLog)
 
@@ -69,7 +64,6 @@ func main() {
 	}
 	defer mqConsumer.Close()
 
-	// ── Lifecycle ────────────────────────────────────────────────────────────
 	ctx, cancel := context.WithCancel(context.Background())
 
 	consumerDone := make(chan error, 1)
@@ -86,7 +80,6 @@ func main() {
 	select {
 	case sig := <-quit:
 		zapLog.Info("shutdown signal received", zap.String("signal", sig.String()))
-		// Cancel context — Consumer.Consume drains in-flight messages before returning.
 		cancel()
 		select {
 		case <-consumerDone:
@@ -96,7 +89,6 @@ func main() {
 		}
 
 	case err := <-consumerDone:
-		// Consumer exited on its own (channel closed, fatal error, etc.)
 		cancel()
 		if err != nil {
 			zapLog.Error("consumer exited unexpectedly", zap.Error(err))

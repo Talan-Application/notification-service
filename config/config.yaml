@@ -20,4 +20,5 @@ smtp:
     username: ${SMTP_USERNAME}
     password: ${SMTP_PASSWORD}
     from: ${SMTP_FROM}
+    fromName: ${SMTP_FROM_NAME}
     tls: ${SMTP_TLS}
