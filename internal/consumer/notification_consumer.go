@@ -47,6 +47,9 @@ func (c *NotificationConsumer) Handle(ctx context.Context, msg amqp.Delivery) er
 		return nil
 	}
 
+	fmt.Printf("[notification-service] event received  type=%-25s  id=%s  occurred_at=%s\n",
+		event.Type, event.ID, event.OccurredAt.Format("2006-01-02T15:04:05Z"))
+
 	// INSERT-first idempotency: only one concurrent worker can claim a given event_id.
 	// The unique constraint on processed_events makes this race-free.
 	claimed, err := c.idempotent.Claim(ctx, event.ID, string(event.Type))
