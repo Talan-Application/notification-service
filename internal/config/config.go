@@ -40,11 +40,11 @@ type SMTPConfig struct {
 	Username string `mapstructure:"username"`
 	Password string `mapstructure:"password"`
 	From     string `mapstructure:"from"`
+	FromName string `mapstructure:"fromName"`
 	TLS      bool   `mapstructure:"tls"`
 }
 
 func Load() (*Config, error) {
-	// Load .env file (ignore if not found in production)
 	_ = godotenv.Load(".env")
 
 	viper.SetConfigName("config")
@@ -52,7 +52,6 @@ func Load() (*Config, error) {
 	viper.AddConfigPath("./config")
 	viper.AddConfigPath(".")
 
-	// Allow environment variables to override yaml values
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 

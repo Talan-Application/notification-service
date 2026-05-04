@@ -9,7 +9,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// Connection wraps an amqp.Connection and transparently reconnects on drops.
 type Connection struct {
 	url  string
 	conn *amqp.Connection
@@ -58,8 +57,6 @@ func (c *Connection) connect() error {
 	return fmt.Errorf("exhausted %d connection attempts to rabbitmq", maxAttempts)
 }
 
-// watchAndReconnect blocks on the NotifyClose channel and reconnects when the
-// underlying TCP connection drops (broker restart, network blip, etc.).
 func (c *Connection) watchAndReconnect() {
 	for {
 		c.mu.RLock()
@@ -98,5 +95,5 @@ func (c *Connection) Close() {
 	}
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	c.conn.Close() //nolint:errcheck
+	c.conn.Close()
 }

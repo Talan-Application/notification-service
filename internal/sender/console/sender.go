@@ -4,10 +4,10 @@ import (
 	"context"
 
 	"go.uber.org/zap"
+
+	"github.com/Talan-Application/notification-service/internal/sender"
 )
 
-// Sender logs notifications instead of sending real emails.
-// Used in development so no SMTP server is required.
 type Sender struct {
 	log *zap.Logger
 }
@@ -16,11 +16,11 @@ func NewSender(log *zap.Logger) *Sender {
 	return &Sender{log: log}
 }
 
-func (s *Sender) Send(_ context.Context, to, subject, body string) error {
+func (s *Sender) Send(_ context.Context, msg sender.Message) error {
 	s.log.Info("notification",
-		zap.String("to", to),
-		zap.String("subject", subject),
-		zap.String("body", body),
+		zap.String("to", msg.To),
+		zap.String("subject", msg.Subject),
+		zap.String("body", msg.Body),
 	)
 	return nil
 }

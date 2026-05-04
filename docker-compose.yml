@@ -1,24 +1,4 @@
-# ── Production Deployment Configuration ────────────────────────────────────
-#
-#   This docker-compose file is designed for production deployments.
-#   The notification-service runs with its own isolated PostgreSQL database
-#   for idempotency tracking (deduplication of processed events).
-#
-#   RabbitMQ and Mailhog can be external services or defined separately.
-#
-# ── Services ───────────────────────────────────────────────────────────────
-#
-#   notification-service  event consumer, email sender
-#   postgres              PostgreSQL database for notification_db (idempotency)
-#   rabbitmq              (optional) message broker for event consumption
-#   mailhog               (optional) SMTP server for testing
-#
-# Usage:
-#   docker compose up -d
-#   docker compose logs -f notification-service
-
 services:
-    # ── postgres ───────────────────────────────────────────────────────────────
     postgres:
         image: postgres:18.1-bookworm
         environment:
@@ -37,37 +17,6 @@ services:
         networks:
             - notification-network
 
-    # ── rabbitmq ──────────────────────────────────────────────────────────────
-    # Uncomment if running RabbitMQ locally. For production, use external service.
-    # rabbitmq:
-    #   image: rabbitmq:3.13-management-alpine
-    #   environment:
-    #     RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
-    #     RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
-    #   volumes:
-    #     - rabbitmq_data:/var/lib/rabbitmq
-    #   healthcheck:
-    #     test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
-    #     interval: 10s
-    #     timeout: 10s
-    #     retries: 5
-    #   ports:
-    #     - "5672:5672"
-    #     - "15672:15672"
-    #   networks:
-    #     - notification-network
-
-    # ── mailhog ───────────────────────────────────────────────────────────────
-    # Uncomment if using Mailhog for SMTP testing. For production, use real SMTP.
-    # mailhog:
-    #   image: mailhog/mailhog:latest
-    #   ports:
-    #     - "1025:1025"     # SMTP
-    #     - "8025:8025"     # web UI
-    #   networks:
-    #     - notification-network
-
-    # ── notification-service migration ────────────────────────────────────────
     notification-migration:
         image: migrate/migrate:v4.19.1
         volumes:
@@ -75,7 +24,6 @@ services:
         networks:
             - notification-network
 
-    # ── notification-service ──────────────────────────────────────────────────
     notification-service:
         build: .
         environment:
@@ -107,4 +55,3 @@ networks:
 
 volumes:
     postgres_data:
-    # rabbitmq_data:

@@ -13,8 +13,6 @@ import (
 
 const Exchange = "talan.events"
 
-// Publisher publishes domain events to the talan.events topic exchange.
-// Intended for use by other services (e.g. auth-service) that need to emit events.
 type Publisher struct {
 	conn *Connection
 }
