@@ -1,5 +1,3 @@
-version: "3.9"
-
 # ── Production Deployment Configuration ────────────────────────────────────
 #
 #   This docker-compose file is designed for production deployments.
@@ -68,6 +66,14 @@ services:
     #     - "8025:8025"     # web UI
     #   networks:
     #     - notification-network
+
+    # ── notification-service migration ────────────────────────────────────────
+    notification-migration:
+        image: migrate/migrate:v4.19.1
+        volumes:
+            - ${PROJECT_ROOT:-./}/migrations:/migrations
+        networks:
+            - notification-network
 
     # ── notification-service ──────────────────────────────────────────────────
     notification-service:
