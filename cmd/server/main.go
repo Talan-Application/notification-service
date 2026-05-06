@@ -53,6 +53,7 @@ func main() {
 	handlers := map[domain.EventType]handler.EventHandler{
 		domain.EventUserRegistered: handler.NewUserRegisteredHandler(emailSender, zapLog),
 		domain.EventPasswordReset:  handler.NewPasswordResetHandler(emailSender, zapLog),
+		domain.EventLoginOTP:       handler.NewLoginOTPHandler(emailSender, zapLog),
 	}
 
 	idempotencyRepo := postgres.NewIdempotencyRepository(db)
