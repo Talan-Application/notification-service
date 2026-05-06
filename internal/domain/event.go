@@ -10,6 +10,7 @@ type EventType string
 const (
 	EventUserRegistered EventType = "user.registered"
 	EventPasswordReset  EventType = "user.password_reset"
+	EventLoginOTP       EventType = "user.login_otp"
 )
 
 type Event struct {
@@ -26,6 +27,12 @@ type UserRegisteredPayload struct {
 }
 
 type PasswordResetPayload struct {
+	UserID int64  `json:"user_id"`
+	Email  string `json:"email"`
+	Code   string `json:"code"`
+}
+
+type LoginOTPPayload struct {
 	UserID int64  `json:"user_id"`
 	Email  string `json:"email"`
 	Code   string `json:"code"`
