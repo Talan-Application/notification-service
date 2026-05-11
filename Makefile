@@ -12,8 +12,8 @@ export PROJECT_ROOT
 build:
 	go build -ldflags="-s -w" -o $(BIN) ./cmd/server
 
-run:
-	go run ./cmd/server
+run: build
+	./$(BIN)
 
 test:
 	go test -v -race -count=1 ./...

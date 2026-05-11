@@ -21,6 +21,10 @@ services:
         image: migrate/migrate:v4.19.1
         volumes:
             - ${PROJECT_ROOT:-./}/migrations:/migrations
+        command: ["-path", "/migrations", "-database", "postgresql://${DATABASE_USER:-postgres}:${DATABASE_PASSWORD:-postgres}@postgres:5432/${DATABASE_DBNAME:-notification_db}?sslmode=${DATABASE_SSLMODE:-disable}", "up"]
+        depends_on:
+            postgres:
+                condition: service_healthy
         networks:
             - notification-network
 
@@ -45,6 +49,8 @@ services:
         depends_on:
             postgres:
                 condition: service_healthy
+            notification-migration:
+                condition: service_completed_successfully
         restart: unless-stopped
         networks:
             - notification-network
