@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.uber.org/zap"
@@ -80,32 +81,48 @@ func (c *Consumer) declareTopology() error {
 }
 
 func (c *Consumer) Consume(ctx context.Context, handler MessageHandler) error {
-	if err := c.channel.Qos(prefetchCount, 0, false); err != nil {
-		return fmt.Errorf("set qos: %w", err)
+	for {
+		if err := c.channel.Qos(prefetchCount, 0, false); err != nil {
+			return fmt.Errorf("set qos: %w", err)
+		}
+
+		deliveries, err := c.channel.Consume(mainQueue, "", false, false, false, false, nil)
+		if err != nil {
+			return fmt.Errorf("start consuming: %w", err)
+		}
+
+		c.log.Info("consumer started", zap.String("queue", mainQueue))
+
+		if !c.drainUntilClosed(ctx, handler, deliveries) {
+			return nil
+		}
+
+		c.log.Warn("consumer channel closed unexpectedly, reconnecting")
+		c.channel.Close()
+
+		if err := c.reconnectChannel(ctx); err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			return fmt.Errorf("consumer reconnect failed: %w", err)
+		}
 	}
+}
 
-	deliveries, err := c.channel.Consume(mainQueue, "", false, false, false, false, nil)
-	if err != nil {
-		return fmt.Errorf("start consuming: %w", err)
-	}
-
-	c.log.Info("consumer started", zap.String("queue", mainQueue))
-
+// drainUntilClosed processes messages until ctx is done (returns false) or the delivery channel closes (returns true).
+func (c *Consumer) drainUntilClosed(ctx context.Context, handler MessageHandler, deliveries <-chan amqp.Delivery) bool {
 	var wg sync.WaitGroup
-
 	for {
 		select {
 		case <-ctx.Done():
 			wg.Wait()
 			c.log.Info("consumer drained, shutting down")
-			return nil
-
+			return false
 		case msg, ok := <-deliveries:
 			if !ok {
 				wg.Wait()
-				return fmt.Errorf("delivery channel closed unexpectedly")
+				return true
 			}
-
 			wg.Add(1)
 			go func(m amqp.Delivery) {
 				defer wg.Done()
@@ -121,6 +138,34 @@ func (c *Consumer) Consume(ctx context.Context, handler MessageHandler) error {
 			}(msg)
 		}
 	}
+}
+
+func (c *Consumer) reconnectChannel(ctx context.Context) error {
+	const maxAttempts = 10
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		ch, err := c.conn.Channel()
+		if err == nil {
+			c.channel = ch
+			if err := c.declareTopology(); err != nil {
+				ch.Close()
+				return fmt.Errorf("declare topology after reconnect: %w", err)
+			}
+			c.log.Info("consumer channel reconnected")
+			return nil
+		}
+		wait := time.Duration(attempt+1) * 2 * time.Second
+		c.log.Warn("channel reopen failed, retrying",
+			zap.Int("attempt", attempt+1),
+			zap.Duration("wait", wait),
+			zap.Error(err),
+		)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(wait):
+		}
+	}
+	return fmt.Errorf("exhausted %d channel reconnect attempts", maxAttempts)
 }
 
 func (c *Consumer) Close() {
